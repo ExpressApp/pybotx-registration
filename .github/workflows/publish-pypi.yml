@@ -3,7 +3,7 @@ name: Publish python package
 on:
   push:
     tags:
-      - "v*"
+      - "*.*.*"
 
 permissions:
   contents: read
