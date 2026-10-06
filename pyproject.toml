@@ -13,6 +13,8 @@ dependencies = [
   "fastapi>=0.115,<1",
   "pydantic>=2.8,<3",
   "PyNaCl>=1.5,<2",
+  "SQLAlchemy[asyncio]>=2.0,<3",
+  "asyncpg>=0.29,<1",
 ]
 
 [project.optional-dependencies]
@@ -60,3 +62,6 @@ show_missing = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pybotx_registration"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"migrations/0001_botx_registrations.sql" = "pybotx_registration/migrations/0001_botx_registrations.sql"

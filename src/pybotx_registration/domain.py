@@ -40,6 +40,16 @@ class Registration:
     updated_at: datetime = field(default_factory=utc_now)
 
 
+@dataclass(frozen=True, slots=True)
+class ActiveBotCredential:
+    """A decrypted credential scoped to one active CTS and bot identity."""
+
+    account_key: AccountKey
+    server_host: str
+    secret_key: str = field(repr=False)
+    secret_revision: int = 1
+
+
 class RegistrationError(Exception):
     """Base error whose subclasses never include a secret in their message."""
 

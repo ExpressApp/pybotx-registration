@@ -9,8 +9,10 @@ from nacl.bindings import crypto_box_SEALBYTES
 
 from pybotx_registration.domain import (
     AccountKey,
+    ActiveBotCredential,
     InvalidRegistrationRequestError,
     Registration,
+    SecretDecryptionError,
 )
 from pybotx_registration.ports import (
     DeliveryKeyProvider,
@@ -102,6 +104,34 @@ class RegistrationService:
 
     async def reset(self, key: AccountKey) -> Registration:
         return await self._repository.reset(key)
+
+    async def verify_durable_credentials(self) -> None:
+        """Fail readiness if persisted ciphertext cannot be decrypted locally."""
+        await self.active_credentials()
+
+    async def active_credentials(self) -> tuple[ActiveBotCredential, ...]:
+        """Load a short-lived decrypted snapshot for a synchronous pybotx adapter."""
+        credentials: list[ActiveBotCredential] = []
+        for registration in await self._repository.list_active():
+            encrypted_secret = registration.encrypted_secret
+            if encrypted_secret is None:
+                raise RuntimeError("active registration has no encrypted secret")
+            plaintext = await self._storage_cipher.decrypt(encrypted_secret)
+            try:
+                secret_key = plaintext.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise SecretDecryptionError(
+                    "stored secret is not a UTF-8 BotX credential"
+                ) from exc
+            credentials.append(
+                ActiveBotCredential(
+                    account_key=registration.account_key,
+                    server_host=registration.server_host,
+                    secret_key=secret_key,
+                    secret_revision=registration.secret_revision,
+                )
+            )
+        return tuple(credentials)
 
     @staticmethod
     def _decode_ciphertext(value: str) -> bytes:

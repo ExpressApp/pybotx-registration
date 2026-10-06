@@ -1,10 +1,14 @@
 from __future__ import annotations
 
-from typing import Protocol
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Protocol
 
 from starlette.requests import Request
 
 from pybotx_registration.domain import AccountKey, EncryptedSecret, Registration
+
+if TYPE_CHECKING:
+    from pybotx_registration.application import RegisterBotCommand
 
 
 class DeliveryKeyProvider(Protocol):
@@ -33,6 +37,16 @@ class RegistrationRepository(Protocol):
     async def deactivate(self, key: AccountKey) -> Registration: ...
 
     async def reset(self, key: AccountKey) -> Registration: ...
+
+    async def list_active(self) -> Sequence[Registration]: ...
+
+
+class RegistrationCommandHandler(Protocol):
+    async def register(self, command: RegisterBotCommand) -> Registration: ...
+
+
+class RegistrationHttpService(RegistrationCommandHandler, Protocol):
+    async def public_key_base64(self) -> str: ...
 
 
 class RegistrationAuthenticator(Protocol):

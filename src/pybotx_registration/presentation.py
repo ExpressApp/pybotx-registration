@@ -6,14 +6,17 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import JSONResponse
 
-from pybotx_registration.application import RegisterBotCommand, RegistrationService
+from pybotx_registration.application import RegisterBotCommand
 from pybotx_registration.domain import (
     AlreadyRegisteredError,
     InvalidRegistrationRequestError,
     RegistrationAuthenticationError,
     SecretDecryptionError,
 )
-from pybotx_registration.ports import RegistrationAuthenticator
+from pybotx_registration.ports import (
+    RegistrationAuthenticator,
+    RegistrationHttpService,
+)
 
 
 class PublicKeyResponse(BaseModel):
@@ -45,7 +48,9 @@ class AlreadyRegisteredResponse(BaseModel):
 
 
 def create_registration_router(
-    *, service: RegistrationService, authenticator: RegistrationAuthenticator
+    *,
+    service: RegistrationHttpService,
+    authenticator: RegistrationAuthenticator,
 ) -> APIRouter:
     router = APIRouter(tags=["BotX registration"])
 
