@@ -92,6 +92,7 @@ class RegistrationService:
         # Decrypt only after syntax and endpoint validation. The repository's
         # atomic activate is still authoritative when concurrent requests race.
         plaintext = await self._delivery_keys.decrypt_sealed(ciphertext)
+        self._decode_secret(plaintext)
         encrypted_secret = await self._storage_cipher.encrypt(plaintext)
         return await self._repository.activate(
             key=key,
@@ -117,12 +118,7 @@ class RegistrationService:
             if encrypted_secret is None:
                 raise RuntimeError("active registration has no encrypted secret")
             plaintext = await self._storage_cipher.decrypt(encrypted_secret)
-            try:
-                secret_key = plaintext.decode("utf-8")
-            except UnicodeDecodeError as exc:
-                raise SecretDecryptionError(
-                    "stored secret is not a UTF-8 BotX credential"
-                ) from exc
+            secret_key = self._decode_secret(plaintext)
             credentials.append(
                 ActiveBotCredential(
                     account_key=registration.account_key,
@@ -132,6 +128,15 @@ class RegistrationService:
                 )
             )
         return tuple(credentials)
+
+    @staticmethod
+    def _decode_secret(plaintext: bytes) -> str:
+        try:
+            return plaintext.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise SecretDecryptionError(
+                "stored secret is not a UTF-8 BotX credential"
+            ) from exc
 
     @staticmethod
     def _decode_ciphertext(value: str) -> bytes:

@@ -19,6 +19,10 @@ CREATE TABLE botx_registrations (
     )
 );
 
+CREATE UNIQUE INDEX uq_botx_registrations_active_host_bot
+    ON botx_registrations (server_host, bot_id)
+    WHERE status = 'ACTIVE';
+
 CREATE TABLE botx_key_material (
     name VARCHAR(128) PRIMARY KEY,
     root_key_id VARCHAR(128) NOT NULL,

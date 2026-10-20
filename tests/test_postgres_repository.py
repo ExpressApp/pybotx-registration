@@ -7,6 +7,7 @@ from typing import cast
 
 import pytest
 from nacl.secret import SecretBox
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from pybotx_registration.domain import (
@@ -18,6 +19,7 @@ from pybotx_registration.domain import (
     SecretDecryptionError,
 )
 from pybotx_registration.repository import (
+    ACTIVE_HOST_BOT_INDEX_NAME,
     PostgresKeyMaterialRepository,
     PostgresRegistrationRepository,
 )
@@ -47,10 +49,17 @@ class _Result:
 
 
 class _Connection:
-    def __init__(self, results: list[list[dict[str, object]]]) -> None:
+    def __init__(
+        self,
+        results: list[list[dict[str, object]]],
+        error: BaseException | None = None,
+    ) -> None:
         self._results = results
+        self._error = error
 
     async def execute(self, _: object) -> _Result:
+        if self._error is not None:
+            raise self._error
         assert self._results
         return _Result(self._results.pop(0))
 
@@ -67,8 +76,12 @@ class _ConnectionContext(AbstractAsyncContextManager[_Connection]):
 
 
 class _Engine:
-    def __init__(self, results: list[list[dict[str, object]]]) -> None:
-        self._connection = _Connection(results)
+    def __init__(
+        self,
+        results: list[list[dict[str, object]]],
+        error: BaseException | None = None,
+    ) -> None:
+        self._connection = _Connection(results, error)
 
     def connect(self) -> _ConnectionContext:
         return _ConnectionContext(self._connection)
@@ -164,6 +177,37 @@ async def test__postgres_repository__activates_or_rejects_existing_credentials(
             key=key,
             server_host="https://cts-a.example.internal",
             encrypted_secret=secret,
+        )
+
+
+@pytest.mark.asyncio
+async def test__postgres_repository__maps_active_host_bot_conflict_to_duplicate(
+) -> None:
+    class _UniqueViolation(Exception):
+        def __str__(self) -> str:
+            return (
+                "duplicate key value violates unique constraint "
+                f'"{ACTIVE_HOST_BOT_INDEX_NAME}"'
+            )
+
+    repository = PostgresRegistrationRepository(
+        cast(
+            AsyncEngine,
+            _Engine(
+                [],
+                error=IntegrityError("insert", {}, _UniqueViolation()),
+            ),
+        )
+    )
+
+    with pytest.raises(AlreadyRegisteredError):
+        await repository.activate(
+            key=AccountKey("cts-b", "bot-a"),
+            server_host="https://cts-a.example.internal",
+            encrypted_secret=EncryptedSecret(
+                ciphertext=b"next",
+                key_id="postgres-key-material:v1",
+            ),
         )
 
 

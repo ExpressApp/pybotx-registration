@@ -24,6 +24,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import RowMapping
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -58,6 +59,15 @@ class InMemoryRegistrationRepository:
         encrypted_secret: EncryptedSecret,
     ) -> Registration:
         async with self._lock:
+            if any(
+                other_key != key
+                and other_key.bot_id == key.bot_id
+                and registration.status is RegistrationStatus.ACTIVE
+                and registration.server_host == server_host
+                for other_key, registration in self._registrations.items()
+            ):
+                raise AlreadyRegisteredError("credential already exists")
+
             existing = self._registrations.get(key)
             if existing is None:
                 registration = Registration(
@@ -123,6 +133,7 @@ class InMemoryRegistrationRepository:
 
 
 metadata = MetaData()
+ACTIVE_HOST_BOT_INDEX_NAME = "uq_botx_registrations_active_host_bot"
 registrations = Table(
     "botx_registrations",
     metadata,
@@ -180,45 +191,50 @@ class PostgresRegistrationRepository:
         encrypted_secret: EncryptedSecret,
     ) -> Registration:
         now = utc_now()
-        async with self._engine.begin() as connection:
-            insert_result = await connection.execute(
-                insert(registrations)
-                .values(
-                    server_id=key.server_id,
-                    bot_id=key.bot_id,
-                    server_host=server_host,
-                    status=RegistrationStatus.ACTIVE.value,
-                    secret_revision=1,
-                    storage_ciphertext=encrypted_secret.ciphertext,
-                    storage_key_id=encrypted_secret.key_id,
-                    created_at=now,
-                    updated_at=now,
+        try:
+            async with self._engine.begin() as connection:
+                insert_result = await connection.execute(
+                    insert(registrations)
+                    .values(
+                        server_id=key.server_id,
+                        bot_id=key.bot_id,
+                        server_host=server_host,
+                        status=RegistrationStatus.ACTIVE.value,
+                        secret_revision=1,
+                        storage_ciphertext=encrypted_secret.ciphertext,
+                        storage_key_id=encrypted_secret.key_id,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                    .on_conflict_do_nothing(index_elements=["server_id", "bot_id"])
+                    .returning(registrations)
                 )
-                .on_conflict_do_nothing(index_elements=["server_id", "bot_id"])
-                .returning(registrations)
-            )
-            inserted = insert_result.mappings().one_or_none()
-            if inserted is not None:
-                return _to_registration(inserted)
+                inserted = insert_result.mappings().one_or_none()
+                if inserted is not None:
+                    return _to_registration(inserted)
 
-            existing = await self._get_for_update(connection, key)
-            if existing.status is not RegistrationStatus.AWAITING_REGISTRATION:
-                raise AlreadyRegisteredError("credential already exists")
+                existing = await self._get_for_update(connection, key)
+                if existing.status is not RegistrationStatus.AWAITING_REGISTRATION:
+                    raise AlreadyRegisteredError("credential already exists")
 
-            update_result = await connection.execute(
-                update(registrations)
-                .where(_key_clause(key))
-                .values(
-                    server_host=server_host,
-                    status=RegistrationStatus.ACTIVE.value,
-                    secret_revision=existing.secret_revision + 1,
-                    storage_ciphertext=encrypted_secret.ciphertext,
-                    storage_key_id=encrypted_secret.key_id,
-                    updated_at=now,
+                update_result = await connection.execute(
+                    update(registrations)
+                    .where(_key_clause(key))
+                    .values(
+                        server_host=server_host,
+                        status=RegistrationStatus.ACTIVE.value,
+                        secret_revision=existing.secret_revision + 1,
+                        storage_ciphertext=encrypted_secret.ciphertext,
+                        storage_key_id=encrypted_secret.key_id,
+                        updated_at=now,
+                    )
+                    .returning(registrations)
                 )
-                .returning(registrations)
-            )
-            return _to_registration(update_result.mappings().one())
+                return _to_registration(update_result.mappings().one())
+        except IntegrityError as exc:
+            if _is_active_host_bot_conflict(exc):
+                raise AlreadyRegisteredError("credential already exists") from exc
+            raise
 
     async def deactivate(self, key: AccountKey) -> Registration:
         async with self._engine.begin() as connection:
@@ -342,6 +358,17 @@ def _key_clause(key: AccountKey) -> ColumnElement[bool]:
         registrations.c.server_id == key.server_id,
         registrations.c.bot_id == key.bot_id,
     )
+
+
+def _is_active_host_bot_conflict(exc: IntegrityError) -> bool:
+    original = exc.orig
+    constraint_name = getattr(original, "constraint_name", None)
+    if constraint_name is None:
+        diagnostic = getattr(original, "diag", None)
+        constraint_name = getattr(diagnostic, "constraint_name", None)
+    if constraint_name == ACTIVE_HOST_BOT_INDEX_NAME:
+        return True
+    return f'constraint "{ACTIVE_HOST_BOT_INDEX_NAME}"' in str(original)
 
 
 def _to_registration(row: RowMapping) -> Registration:

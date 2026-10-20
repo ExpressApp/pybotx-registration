@@ -89,6 +89,39 @@ async def test_duplicate_registration_never_replaces_secret(
 
 
 @pytest.mark.asyncio
+async def test_active_host_and_bot_conflict_never_persists_second_registration(
+    app: FastAPI, repository: InMemoryRegistrationRepository
+) -> None:
+    async with await _client(app) as client:
+        first = await _sealed_payload(client, b"first")
+        second = await _sealed_payload(client, b"second")
+        first_response = await client.post(
+            "/register",
+            json={
+                "bot_id": "bot-a",
+                "server_id": "cts-a",
+                "server_host": "https://cts.example.internal",
+                "encrypted_secret_key": first,
+            },
+        )
+        second_response = await client.post(
+            "/register",
+            json={
+                "bot_id": "bot-a",
+                "server_id": "cts-b",
+                "server_host": "https://cts.example.internal",
+                "encrypted_secret_key": second,
+            },
+        )
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 400
+    assert second_response.json()["reason"] == "already_registered"
+    assert await repository.get(AccountKey("cts-b", "bot-a")) is None
+    assert len(await repository.list_active()) == 1
+
+
+@pytest.mark.asyncio
 async def test_concurrent_first_delivery_has_exactly_one_winner(app: FastAPI) -> None:
     async with await _client(app) as client:
         ciphertext = await _sealed_payload(client)
@@ -120,6 +153,26 @@ async def test_invalid_ciphertext_and_non_allowlisted_endpoint_are_not_persisted
                 "server_id": "cts-a",
                 "server_host": "https://public.example",
                 "encrypted_secret_key": base64.b64encode(b"x" * 48).decode(),
+            },
+        )
+
+    assert response.status_code == 400
+    assert await repository.get(AccountKey("cts-a", "bot-a")) is None
+
+
+@pytest.mark.asyncio
+async def test_non_utf8_secret_is_rejected_before_persistence(
+    app: FastAPI, repository: InMemoryRegistrationRepository
+) -> None:
+    async with await _client(app) as client:
+        ciphertext = await _sealed_payload(client, b"\xff\xfe\xfd")
+        response = await client.post(
+            "/register",
+            json={
+                "bot_id": "bot-a",
+                "server_id": "cts-a",
+                "server_host": "https://cts.example.internal",
+                "encrypted_secret_key": ciphertext,
             },
         )
 
