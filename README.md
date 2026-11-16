@@ -25,6 +25,12 @@ The tests exercise real Libsodium sealed-box encryption/decryption, HTTP
 contract responses, durable-at-service-boundary storage semantics, duplicate
 and concurrent delivery, lifecycle transitions, and the pybotx API gate.
 
+## GitLab CI
+
+Merge requests and pushes to the default branch run pytest on Python 3.11–3.14,
+Ruff, mypy, and a build of the source distribution and wheel. The pipeline
+checks wheel contents and reports test results and coverage in GitLab.
+
 ## Production adapters
 
 `InMemoryRegistrationRepository` and `LocalSecretBoxCipher` are test/dev

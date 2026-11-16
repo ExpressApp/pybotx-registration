@@ -1,0 +1,37 @@
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+default:
+  image: python:3.13
+  tags:
+    - docker
+  interruptible: true
+  before_script:
+    - python -m pip install uv
+    - uv sync --extra dev --locked
+
+test:
+  image: python:${PYTHON_VERSION}
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.11", "3.12", "3.13", "3.14"]
+  script:
+    - uv run --no-sync pytest --cov=pybotx_registration --cov-report=xml --junitxml=junit.xml
+  artifacts:
+    reports:
+      junit: junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+
+lint:
+  script:
+    - uv run --no-sync ruff check src tests
+    - uv run --no-sync mypy src tests
+
+package:
+  script:
+    - uv build
+    - uv run --no-sync check-wheel-contents dist/*.whl
