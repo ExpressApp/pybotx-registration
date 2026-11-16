@@ -48,7 +48,7 @@ async def test_register_uses_real_sealed_box_and_persists_only_storage_ciphertex
             json={
                 "bot_id": "bot-a",
                 "server_id": "cts-a",
-                "server_host": "https://cts.example.internal",
+                "server_host": "cts.example.internal",
                 "encrypted_secret_key": ciphertext,
             },
         )
@@ -73,7 +73,7 @@ async def test_duplicate_registration_never_replaces_secret(
         payload = {
             "bot_id": "bot-a",
             "server_id": "cts-a",
-            "server_host": "https://cts.example.internal",
+            "server_host": "cts.example.internal",
             "encrypted_secret_key": first,
         }
         assert (await client.post("/register", json=payload)).status_code == 201
@@ -95,7 +95,7 @@ async def test_concurrent_first_delivery_has_exactly_one_winner(app: FastAPI) ->
         payload = {
             "bot_id": "bot-a",
             "server_id": "cts-a",
-            "server_host": "https://cts.example.internal",
+            "server_host": "cts.example.internal",
             "encrypted_secret_key": ciphertext,
         }
         responses = await asyncio.gather(
@@ -118,7 +118,7 @@ async def test_invalid_ciphertext_and_non_allowlisted_endpoint_are_not_persisted
             json={
                 "bot_id": "bot-a",
                 "server_id": "cts-a",
-                "server_host": "https://public.example",
+                "server_host": "public.example",
                 "encrypted_secret_key": base64.b64encode(b"x" * 48).decode(),
             },
         )
@@ -149,7 +149,7 @@ async def test_public_key_and_registration_require_the_security_profile(
                 json={
                     "bot_id": "bot-a",
                     "server_id": "cts-a",
-                    "server_host": "https://cts.example.internal",
+                    "server_host": "cts.example.internal",
                     "encrypted_secret_key": "x" * 64,
                 },
             )
@@ -166,7 +166,7 @@ async def test_reset_allows_controlled_reregistration(
         RegisterBotCommand(
             bot_id="bot-a",
             server_id="cts-a",
-            server_host="https://cts.example.internal",
+            server_host="cts.example.internal",
             encrypted_secret_key=base64.b64encode(SealedBox(public_key).encrypt(b"one")).decode(),
         )
     )
@@ -177,7 +177,7 @@ async def test_reset_allows_controlled_reregistration(
         RegisterBotCommand(
             bot_id="bot-a",
             server_id="cts-a",
-            server_host="https://cts.example.internal",
+            server_host="cts.example.internal",
             encrypted_secret_key=base64.b64encode(SealedBox(public_key).encrypt(b"two")).decode(),
         )
     )

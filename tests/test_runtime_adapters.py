@@ -69,16 +69,18 @@ def test__https_server_host_policy__rejects_invalid_hosts_and_normalizes_valid_o
         HttpsServerHostPolicy(frozenset())
 
     policy = HttpsServerHostPolicy(frozenset({"cts.example.internal"}))
-    assert policy.validate("https://CTS.EXAMPLE.INTERNAL:443/") == (
+    assert policy.validate("CTS.EXAMPLE.INTERNAL:443/") == (
         "https://cts.example.internal"
     )
 
     for endpoint in (
         "http://cts.example.internal",
-        "https://user@cts.example.internal",
-        "https://cts.example.internal/path",
-        "https://cts.example.internal:8443",
-        "https://cts.example.internal:invalid",
+        "https://cts.example.internal",
+        "user@cts.example.internal",
+        "cts.example.internal/path",
+        "cts.example.internal:8443",
+        "cts.example.internal:invalid",
+        "[cts.example.internal",
     ):
         with pytest.raises(InvalidRegistrationRequestError):
             policy.validate(endpoint)
@@ -142,7 +144,7 @@ def test__registration_container__builds_durable_components_from_configuration(
     assert repository is container.repository()
     assert root_key == container.root_key()
     assert len(root_key) == 32
-    assert policy.validate("https://cts.example.internal") == "https://cts.example.internal"
+    assert policy.validate("cts.example.internal") == "https://cts.example.internal"
 
 
 def test__local_root_key__survives_store_recreation(tmp_path: Path) -> None:
@@ -183,7 +185,7 @@ async def test__container__restores_keys_and_verifies_credentials_before_ready(
         RegisterBotCommand(
             bot_id="bot-a",
             server_id="cts-a",
-            server_host="https://cts.example.internal",
+            server_host="cts.example.internal",
             encrypted_secret_key=base64.b64encode(ciphertext).decode(),
         )
     )
