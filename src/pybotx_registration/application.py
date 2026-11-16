@@ -41,7 +41,18 @@ class HttpsServerHostPolicy:
         )
 
     def validate(self, server_host: str) -> str:
-        parsed = urlsplit(server_host)
+        if "://" in server_host:
+            raise InvalidRegistrationRequestError(
+                "server_host violates endpoint policy"
+            )
+
+        try:
+            parsed = urlsplit(f"//{server_host}")
+        except ValueError as exc:
+            raise InvalidRegistrationRequestError(
+                "server_host is malformed"
+            ) from exc
+
         host = parsed.hostname.lower().rstrip(".") if parsed.hostname else None
         try:
             port = parsed.port
@@ -50,8 +61,7 @@ class HttpsServerHostPolicy:
                 "server_host has an invalid port"
             ) from exc
         if (
-            parsed.scheme != "https"
-            or host is None
+            host is None
             or host not in self._allowed_hosts
             or parsed.username is not None
             or parsed.password is not None

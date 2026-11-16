@@ -111,7 +111,7 @@ async def test__provider__serves_a_refreshed_snapshot_without_database_io(
         multi_cts_service,
         delivery_keys,
         server_id="cts-a",
-        server_host="https://cts-a.example.internal",
+        server_host="cts-a.example.internal",
     )
     snapshot = RegistrationAccountSnapshot()
     await snapshot.refresh(multi_cts_service)
@@ -144,14 +144,14 @@ async def test__provider__resolves_multi_cts_and_rejects_ambiguous_bot_ids(
         multi_cts_service,
         delivery_keys,
         server_id="cts-a",
-        server_host="https://cts-a.example.internal",
+        server_host="cts-a.example.internal",
         secret=b"one",
     )
     await _register(
         multi_cts_service,
         delivery_keys,
         server_id="cts-b",
-        server_host="https://cts-b.example.internal",
+        server_host="cts-b.example.internal",
         secret=b"two",
     )
     snapshot = RegistrationAccountSnapshot()
@@ -196,7 +196,7 @@ async def test__bridge__refreshes_snapshot_and_invalidates_after_all_lifecycle_c
     command = RegisterBotCommand(
         bot_id=str(BOT_ID),
         server_id="cts-a",
-        server_host="https://cts-a.example.internal",
+        server_host="cts-a.example.internal",
         encrypted_secret_key=base64.b64encode(
             SealedBox(public_key).encrypt(b"one")
         ).decode(),
