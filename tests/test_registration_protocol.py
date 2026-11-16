@@ -100,7 +100,7 @@ async def test_active_host_and_bot_conflict_never_persists_second_registration(
             json={
                 "bot_id": "bot-a",
                 "server_id": "cts-a",
-                "server_host": "https://cts.example.internal",
+                "server_host": "cts.example.internal",
                 "encrypted_secret_key": first,
             },
         )
@@ -109,7 +109,7 @@ async def test_active_host_and_bot_conflict_never_persists_second_registration(
             json={
                 "bot_id": "bot-a",
                 "server_id": "cts-b",
-                "server_host": "https://cts.example.internal",
+                "server_host": "cts.example.internal",
                 "encrypted_secret_key": second,
             },
         )
